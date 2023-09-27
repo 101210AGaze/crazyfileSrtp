@@ -50,13 +50,87 @@
 #define MESSAGE "hello world"
 #define MESSAGE_LENGHT 13
 
+//飞行任务权柄
+QueueHandle_t  fly_Semphore;
+
+//部分飞行常量
+static setpoint_t setpoint;
+static float height = 0.3;
+// test任务设置
+#define TEST_TASK_SIZE 1000
+#define TEST_TASK_PRI 2
+TaskHandle_t TEST_task_Handlar;
+// 主任务设置
+#define APP_STACK_SIZE 1000
+#define APP_MAIN_PRI 1
+TaskHandle_t appMainTask_Handlar;
+
+
+// 设置飞控部分
+
+static void setHoverSetpoint(setpoint_t *setpoint, float vx, float vy, float z, float yawrate)
+{
+  setpoint->mode.z = modeAbs;
+  setpoint->position.z = z;
+  setpoint->mode.yaw = modeVelocity;
+  setpoint->attitudeRate.yaw = yawrate;
+  setpoint->mode.x = modeVelocity;
+  setpoint->mode.y = modeVelocity;
+  setpoint->velocity.x = vx;
+  setpoint->velocity.y = vy;
+  setpoint->velocity_body = true;
+  commanderSetSetpoint(setpoint, 3);
+}
+
+void take_off()
+{
+  for (int i = 0; i < 100; i++)
+  {
+    setHoverSetpoint(&setpoint, 0, 0, height, 0);
+    vTaskDelay(M2T(10));
+  }
+}
+void land()
+{
+  int i = 0;
+  float per_land = 0.05;
+  while (height - i * per_land >= 0.05f)
+  {
+    i++;
+    setHoverSetpoint(&setpoint, 0, 0, height - (float)i * per_land, 0);
+    vTaskDelay(M2T(10));
+  }
+}
+
+void testTask()
+{
+  for (int i = 0; i < 5; i++)
+  {
+    DEBUG_PRINT("对方飞机处于准备阶段，开始响应！\n");
+    take_off();
+    land();
+    DEBUG_PRINT("响应任务结束！\n");
+  }
+}
+
+void appMainTask(void *param)
+{
+  taskENTER_CRITICAL();
+  fly_Semphore = xSemaphoreCreateBinary();
+  xSemaphoreGive(fly_Semphore);
+  xTaskCreate(testTask, "test_task", TEST_TASK_SIZE, NULL, TEST_TASK_PRI, &TEST_task_Handlar);
+  DEBUG_PRINT("test_task ...succ\n");
+  vTaskDelete(appMainTask_Handlar);
+  taskEXIT_CRITICAL();
+}
+
+
 struct Boid
 {
     char id;
     float position_x;
     float position_y;
-    float position_z;
-    
+    float position_z;    
 };
 
 
@@ -74,29 +148,29 @@ void p2pcallbackHandler(P2PPacket *p)
 //   DEBUG_PRINT("[RSSI: -%d dBm] Message from CF nr. %d, %s\n", rssi, other_id, msg);
 
     // 输出数据包的内容
-    DEBUG_PRINT("Data:\n");
-    for (int i = 0; i < p->size; i++) {
-        DEBUG_PRINT("%02X ", p->data[i]);
-        if ((i + 1) % 16 == 0) {
-            DEBUG_PRINT("\n");
-        }
+    DEBUG_PRINT("收到的数据包为(Hexadecimal):\n");
+    for (size_t i = 0; i < sizeof(struct Boid); i++) {
+        DEBUG_PRINT("%02X \n ", (unsigned char)p->data[i]);
     }
-
-
+    DEBUG_PRINT("接收结束(Hexadecimal):\n");
+    
+    
     struct Boid copyBoid;
     memcpy(&copyBoid,&p->data[0], sizeof(struct Boid));
     
-    DEBUG_PRINT("Deserialized CopyBoid:\n");
+    DEBUG_PRINT("打印接收的数据包\n");
     DEBUG_PRINT("COPY_ID: %c\n", copyBoid.id);
     DEBUG_PRINT("COPY_Position_x: %f\n", (double)copyBoid.position_x);
     DEBUG_PRINT("COPY_Position_y: %f\n", (double)copyBoid.position_y);
     DEBUG_PRINT("COPY_Position_z: %f\n", (double)copyBoid.position_z);
+
+    //这里是接收数据后的飞行逻辑，
 }
 
 void appMain()
 {
   while(1) {
-
+    //初始化boid，获取飞机本身的信息
     struct Boid boid;
     boid.id = 'A';
 
@@ -125,7 +199,12 @@ void appMain()
 
     // 将结构体boid序列化到char数组
     memcpy(serializedData, &boid, serializedSize);
+      
 
+    DEBUG_PRINT("测试发送前是boid十六进制:\n");
+    for (size_t i = 0; i < sizeof(struct Boid); i++) {
+        DEBUG_PRINT("%02X \n ", (unsigned char)serializedData[i]);
+    }
     // 现在你可以使用serializedData进行传输或保存
 
     // 示例：将char数组反序列化为结构体
@@ -143,7 +222,7 @@ void appMain()
     //    however since they are sending every 2 seconds, and they are not started up at the same
     //    time and their internal clocks are different, there is not really something to worry about
     
-    DEBUG_PRINT("Waiting for activation ...\n");
+    DEBUG_PRINT("等待坐标测算...\n");
 
     // Initialize the p2p packet 
     static P2PPacket p_reply;
@@ -151,8 +230,8 @@ void appMain()
 
 
     // 将结构体boid序列化到数据包的char数组
-    memcpy(&p_reply.data, serializedData, serializedSize);
-    p_reply.size=serializedSize+1;
+    memcpy(&p_reply.data, &boid, sizeof(struct Boid));
+    p_reply.size=sizeof(struct Boid)+1; 
 
     // Register the callback function so that the CF can receive packets as well.
     p2pRegisterCB(p2pcallbackHandler);
