@@ -148,11 +148,11 @@ void p2pcallbackHandler(P2PPacket *p)
 //   DEBUG_PRINT("[RSSI: -%d dBm] Message from CF nr. %d, %s\n", rssi, other_id, msg);
 
     // 输出数据包的内容
-    DEBUG_PRINT("收到的数据包为(Hexadecimal):\n");
-    for (size_t i = 0; i < sizeof(struct Boid); i++) {
-        DEBUG_PRINT("%02X \n ", (unsigned char)p->data[i]);
-    }
-    DEBUG_PRINT("接收结束(Hexadecimal):\n");
+    // DEBUG_PRINT("收到的数据包为(Hexadecimal):\n");
+    // for (size_t i = 0; i < sizeof(struct Boid); i++) {
+    //     DEBUG_PRINT("%02X \n ", (unsigned char)p->data[i]);
+    // }
+    // DEBUG_PRINT("接收结束(Hexadecimal):\n");
     
     
     struct Boid copyBoid;
@@ -172,7 +172,7 @@ void appMain()
   while(1) {
     //初始化boid，获取飞机本身的信息
     struct Boid boid;
-    boid.id = 'A';
+    boid.id = 'C';
 
 
     logVarId_t idX = logGetVarId("stateEstimate", "x");
@@ -201,17 +201,17 @@ void appMain()
     memcpy(serializedData, &boid, serializedSize);
       
 
-    DEBUG_PRINT("测试发送前是boid十六进制:\n");
-    for (size_t i = 0; i < sizeof(struct Boid); i++) {
-        DEBUG_PRINT("%02X \n ", (unsigned char)serializedData[i]);
-    }
+    // DEBUG_PRINT("测试发送前是boid十六进制:\n");
+    // for (size_t i = 0; i < sizeof(struct Boid); i++) {
+    //     DEBUG_PRINT("%02X \n ", (unsigned char)serializedData[i]);
+    // }
     // 现在你可以使用serializedData进行传输或保存
 
     // 示例：将char数组反序列化为结构体
     struct Boid deserializedBoid;
     memcpy(&deserializedBoid, serializedData, serializedSize);
 
-    DEBUG_PRINT("Deserialized Boid:\n");
+    DEBUG_PRINT("  Deserialized Boid:\n");
     DEBUG_PRINT("ID: %c\n", deserializedBoid.id);
     DEBUG_PRINT("Position_x: %f\n", (double)deserializedBoid.position_x);
     DEBUG_PRINT("Position_y: %f\n", (double)deserializedBoid.position_y);
